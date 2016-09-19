@@ -30,6 +30,8 @@ cprintf("n-->%08x\n",n);
 	nextfree = ROUNDUP((char *) (nextfree+n), PGSIZE);
 	cprintf("n>0 loop\n");
 	cprintf("nextfree-->%08x",nextfree);
+	if((uint32_t)nextfree-KERNBASE>(npages*PGSIZE))
+        	panic("boot_alloc: Not enough memory\n");
 	return next;
 	} //------------------------------------------------------------------------------------------------> Change 1 end
 
@@ -58,26 +60,33 @@ void
 page_init(void)
 {
 
-	 size_t i;
-    for (i = 1; i < npages_basemem; i++) {
-//cprintf("i is %d",i);
-//cprintf("npages_basemem is %d",npages_basemem);
+	 size_t i=0;
+	pages[i].pp_ref = 1;
+	pages[i].pp_link = NULL;
+	size_t upper = PGNUM(PADDR(boot_alloc(0)));
+	cprintf("upper:%08x",upper);
+	cprintf("lower:%08x",EXTPHYSMEM/PGSIZE);
 
-       pages[i].pp_ref = 0;
-        pages[i].pp_link = page_free_list;
-        page_free_list = &pages[i];
-    }
-    int med = (int)ROUNDUP(((char*)pages) + (sizeof(struct PageInfo) * npages) - 0xf0000000, PGSIZE)/PGSIZE;
-    cprintf("%d\n", ((char*)pages) + (sizeof(struct PageInfo) * npages));
-    cprintf("med=%d\n", med);
-    for (i = med; i < npages; i++) {
-        pages[i].pp_ref = 0;
-        pages[i].pp_link = page_free_list;
-        page_free_list = &pages[i];
-    }
+	for (i = 1; i < npages_basemem; i++) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	    }
 
+	for (i = IOPHYSMEM/PGSIZE; i < EXTPHYSMEM/PGSIZE; i++) {
+		pages[i].pp_ref = 1;
+		pages[i].pp_link = NULL;
+	}
 
-cprintf("reached point 3\n");
+	for (i = EXTPHYSMEM/PGSIZE; i < upper; i++) {
+		pages[i].pp_ref = 1;
+		pages[i].pp_link = NULL;
+	}
+	for (i = upper; i < npages; i++) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	}
 }
 
 Function 3
@@ -111,12 +120,12 @@ void
 page_free(struct PageInfo *pp)
 {
 
-if(pp->pp_ref != 0 || pp->pp_link != NULL ){
-panic("page_free:Page might be in use\n");
-//page_decref(pp);
-
-
-}
+	if(pp->pp_ref != 0 || pp->pp_link != NULL ){
+	panic("page_free:Page might be in use\n");
+	//page_decref(pp);
+	
+	
+	}
 
 pp->pp_link = page_free_list;
     page_free_list = pp;
@@ -130,6 +139,114 @@ pp->pp_link = page_free_list;
 
 
 
+void
+mem_init(void)
+{
+	uint32_t cr0;
+	size_t n;
+
+	// Find out how much memory the machine has (npages & npages_basemem).
+	i386_detect_memory();
+
+	// Remove this line when you're ready to test this function.
+	//panic("mem_init: This function is not finished\n");
+
+	//////////////////////////////////////////////////////////////////////
+	// create initial page directory.
+
+	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
+	memset(kern_pgdir, 0, PGSIZE);
+
+	//////////////////////////////////////////////////////////////////////
+	// Recursively insert PD in itself as a page table, to form
+	// a virtual page table at virtual address UVPT.
+	// (For now, you don't have understand the greater purpose of the
+	// following line.)
+
+	// Permissions: kernel R, user R
+	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
+
+	//////////////////////////////////////////////////////////////////////
+	// Allocate an array of npages 'struct PageInfo's and store it in 'pages'.
+	// The kernel uses this array to keep track of physical pages: for
+	// each physical page, there is a corresponding struct PageInfo in this
+	// array.  'npages' is the number of physical pages in memory.  Use memset
+	// to initialize all fields of each struct PageInfo to 0.
+	// Your code goes here:
+
+	pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
+	memset(pages, 0, sizeof(struct PageInfo) * npages);
+
+
+	//////////////////////////////////////////////////////////////////////
+	// Now that we've allocated the initial kernel data structures, we set
+	// up the list of free physical pages. Once we've done so, all further
+	// memory management will go through the page_* functions. In
+	// particular, we can now map memory using boot_map_region
+	// or page_insert
+	page_init();
+
+	check_page_free_list(1);
+/****************************************************************************************************/
+	check_page_alloc();
+	check_page();
+
+	//////////////////////////////////////////////////////////////////////
+	// Now we set up virtual memory
+
+	//////////////////////////////////////////////////////////////////////
+	// Map 'pages' read-only by the user at linear address UPAGES
+	// Permissions:
+	//    - the new image at UPAGES -- kernel R, user R
+	//      (ie. perm = PTE_U | PTE_P)
+	//    - pages itself -- kernel RW, user NONE
+	// Your code goes here:
+
+	//////////////////////////////////////////////////////////////////////
+	// Use the physical memory that 'bootstack' refers to as the kernel
+	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
+	// We consider the entire range from [KSTACKTOP-PTSIZE, KSTACKTOP)
+	// to be the kernel stack, but break this into two pieces:
+	//     * [KSTACKTOP-KSTKSIZE, KSTACKTOP) -- backed by physical memory
+	//     * [KSTACKTOP-PTSIZE, KSTACKTOP-KSTKSIZE) -- not backed; so if
+	//       the kernel overflows its stack, it will fault rather than
+	//       overwrite memory.  Known as a "guard page".
+	//     Permissions: kernel RW, user NONE
+	// Your code goes here:
+
+	//////////////////////////////////////////////////////////////////////
+	// Map all of physical memory at KERNBASE.
+	// Ie.  the VA range [KERNBASE, 2^32) should map to
+	//      the PA range [0, 2^32 - KERNBASE)
+	// We might not have 2^32 - KERNBASE bytes of physical memory, but
+	// we just set up the mapping anyway.
+	// Permissions: kernel RW, user NONE
+	// Your code goes here:
+
+	// Check that the initial page directory has been set up correctly.
+	check_kern_pgdir();
+
+	// Switch from the minimal entry page directory to the full kern_pgdir
+	// page table we just created.	Our instruction pointer should be
+	// somewhere between KERNBASE and KERNBASE+4MB right now, which is
+	// mapped the same way by both page tables.
+	//
+	// If the machine reboots at this point, you've probably set up your
+	// kern_pgdir wrong.
+	lcr3(PADDR(kern_pgdir));
+
+	check_page_free_list(0);
+	
+	// entry.S set the really important flags in cr0 (including enabling
+	// paging).  Here we configure the rest of the flags that we care about.
+	cr0 = rcr0();
+	cr0 |= CR0_PE|CR0_PG|CR0_AM|CR0_WP|CR0_NE|CR0_MP;
+	cr0 &= ~(CR0_TS|CR0_EM);
+	lcr0(cr0);
+
+	// Some more checks, only possible after kern_pgdir is installed.
+	check_page_installed_pgdir();
+}
 
 
 
