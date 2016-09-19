@@ -51,7 +51,14 @@ allcation of the physical page array.
 pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
 memset(pages, 0, sizeof(struct PageInfo) * npages);
 
+---------------------------------OUTPUT--------------------------------------------------------------------------------------
+Physical memory: 66556K available, base = 640K, extended = 65532K --i386_detect_memory output
 
+Require 4096 bytes, allocate:1 pages, Remainder:16638 pages, Total:16639 pages, nextfree:0xf0115000, result:0xf0114000 
+
+Require 133112 bytes, allocate:33 pages, Remainder:16605 pages, Total:16639 pages, nextfree:0xf0136000, result:0xf0115000
+
+-----------------------------end OUTPUT----------------------------------------------------------------------------------------
 
 Function 2
 -------------------------------------------------------------------------------------------------------------------------------
