@@ -323,21 +323,23 @@ void
 page_free(struct PageInfo *pp)
 {
 
+if(pp->pp_ref != 0 || pp->pp_link != NULL ){
+panic("page_free:Page might be in use\n");
+//page_decref(pp);
+
+
+}
 
 pp->pp_link = page_free_list;
     page_free_list = pp;
 
-while(pp->pp_ref != 0  ){
-panic("mem_init:Page might be in use\n");
-page_decref(pp);
 
-
-}
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
 //cprintf("reached end of page_free\n");
 }
+
 
 //
 // Decrement the reference count on a page,
