@@ -293,7 +293,8 @@ mem_init_mp(void)
 	//
 	// LAB 4: Your code here:
 int i;
-    for (i = 0; i < NCPU; i++) {
+  
+    for (i = 0; i < NCPU; ++i) {
         boot_map_region(kern_pgdir, 
             KSTACKTOP - KSTKSIZE - i * (KSTKSIZE + KSTKGAP), 
             KSTKSIZE, 
@@ -335,42 +336,20 @@ page_init(void)
 	//     Some of it is in use, some is free. Where is the kernel
 	//     in physical memory?  Which pages are already in use for
 	//     page tables and other data structures?
-	//
+	// 
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
-
-	size_t i=0;
-	pages[i].pp_ref = 1;
-	pages[i].pp_link = NULL;
-	size_t upper = PGNUM(PADDR(boot_alloc(0)));
-	cprintf("upper:%08x",upper);
-	cprintf("lower:%08x",EXTPHYSMEM/PGSIZE);
-	
-	for (i = 1; i < MPENTRY_PADDR/PGSIZE; i++) { // Lab 4: MPENTRY_PADDR is the entry address for Multiprocessors. Should not be on pagefreelist
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
-	    }	
-	pages[MPENTRY_PADDR/PGSIZE].pp_ref = 1;
-	pages[MPENTRY_PADDR/PGSIZE].pp_link = NULL;
-
-	for (i = (MPENTRY_PADDR/PGSIZE)+1; i < npages_basemem; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
-	    }
-
-	for (i = IOPHYSMEM/PGSIZE; i < EXTPHYSMEM/PGSIZE; i++) {
-		pages[i].pp_ref = 1;
-		pages[i].pp_link = NULL;
+	size_t i;
+    for (i = 1; i < MPENTRY_PADDR/PGSIZE; i++) {
+        pages[i].pp_ref = 0;
+        pages[i].pp_link = page_free_list;
+        page_free_list = &pages[i];
 	}
-
-	for (i = EXTPHYSMEM/PGSIZE; i < upper; i++) {
-		pages[i].pp_ref = 1;
-		pages[i].pp_link = NULL;
-	}
-	for (i = upper; i < npages; i++) {
+	int point = (int)ROUNDUP(((char*)envs) + (sizeof(struct Env) * NENV) - 0xf0000000, PGSIZE)/PGSIZE;
+	//cprintf("%x\n", ((char*)envs) + (sizeof(struct Env) * NENV));
+	//cprintf("med=%d\n", med);
+	for (i = point; i < npages; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
@@ -628,15 +607,13 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Your code here:
 	//panic("mmio_map_region not implemented");
 
-	size_t size_pages = ROUNDUP(size, PGSIZE);
-	if (base + size_pages > MMIOLIM)
-		panic("Out of bounds\n");
-
-	boot_map_region(kern_pgdir, base, size_pages, pa, PTE_PCD | PTE_PWT | PTE_W);
-
-	uintptr_t mapped_base = base;
-	base += size_pages;
-	return (void *) mapped_base;
+	size = ROUNDUP(pa+size, PGSIZE);
+    pa = ROUNDDOWN(pa, PGSIZE);
+    size -= pa;
+    if (base+size >= MMIOLIM) panic("not enough memory");
+    boot_map_region(kern_pgdir, base, size, pa, PTE_PCD|PTE_PWT|PTE_W);
+    base += size;
+    return (void*) (base - size);
 }
 
 static uintptr_t user_mem_check_addr;

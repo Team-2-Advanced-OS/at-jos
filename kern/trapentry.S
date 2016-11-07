@@ -4,7 +4,6 @@
 #include <inc/memlayout.h>
 #include <inc/trap.h>
 
-#include <kern/picirq.h>
 
 
 ###################################################################
@@ -78,7 +77,3 @@ _alltraps:
   movw %ax, %es
     pushl %esp // Argument for trap()
     call trap
- 
- 
- 
-
