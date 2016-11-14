@@ -250,26 +250,24 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 3: Your code here.
 
 	if (tf->tf_trapno == T_PGFLT) {
-		// cprintf("PAGE FAULT\n");
+		
 		page_fault_handler(tf);
 		return;
 	}
 	if (tf->tf_trapno == T_BRKPT) {
-		// cprintf("BREAK POINT\n");
+		
 		monitor(tf);
 		return;
 	}
 	if (tf->tf_trapno == T_SYSCALL) {
-		// cprintf("SYSTEM CALL\n");
+		
 		tf->tf_regs.reg_eax = 
 			syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
 				tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
 		return;
 	}
 
-	// Handle spurious interrupts
-	// The hardware sometimes raises these because of noise on the
-	// IRQ line or other reasons. We don't care.
+	
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
 		cprintf("Spurious interrupt on irq 7\n");
 		print_trapframe(tf);
@@ -280,21 +278,14 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
-		// cprintf("Timer\n");
+		
 		lapic_eoi();
 		sched_yield();
 		return;
 	}
 
 
-	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
-	if (tf->tf_cs == GD_KT)
-		panic("unhandled trap in kernel");
-	else {
-		env_destroy(curenv);
-		return;
-	}
+	
 }
 
 void
@@ -436,4 +427,3 @@ page_fault_handler(struct Trapframe *tf)
 	print_trapframe(tf);
 	env_destroy(curenv);
 }
-
