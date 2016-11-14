@@ -5,6 +5,7 @@
 #include <inc/kbdreg.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/csa.h>
 
 #include <kern/console.h>
 #include <kern/picirq.h>
@@ -164,8 +165,9 @@ static void
 cga_putc(int c)
 {
 	// if no attribute given, then use black on white
+	if (!csa) csa = 0x0700;
 	if (!(c & ~0xFF))
-		c |= 0x0700;
+		c |= csa;
 
 	switch (c & 0xff) {
 	case '\b':
@@ -196,7 +198,7 @@ cga_putc(int c)
 	if (crt_pos >= CRT_SIZE) {
 		int i;
 
-		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t)); // You can write more than one line once the max is reached. Brings the cursor to init position.
+		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
 		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
 			crt_buf[i] = 0x0700 | ' ';
 		crt_pos -= CRT_COLS;
@@ -370,7 +372,7 @@ kbd_intr(void)
 static void
 kbd_init(void)
 {
-	// Drain the kbd buffer so that QEMU generates interrupts.
+	// Drain the kbd buffer so that Bochs generates interrupts.
 	kbd_intr();
 	irq_setmask_8259A(irq_mask_8259A & ~(1<<1));
 }

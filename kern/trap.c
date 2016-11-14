@@ -66,13 +66,11 @@ static const char *trapname(int trapno)
 }
 
 
+//#define MAX_IDT_NUM 256
+//#define GATE_DPL 3
 
-void
-trap_init(void)
-{
-	extern struct Segdesc gdt[];
 
-	void i0();
+    void i0();
     void i1();
     void i3();
     void i4();
@@ -87,32 +85,72 @@ trap_init(void)
     void i13();
     void i14();
     void i16();
-	void i48();
+    
 
-	extern struct Segdesc gdt[];
 
+    void i32();
+    void i33();
+    void i34();
+    void i35();
+    void i36();
+    void i37();
+    void i38();
+    void i39();
+    void i40();
+    void i41();
+    void i42();
+    void i43();
+    void i44();
+void i45();
+    void i46();
+	void i47();
+void i48();
+
+void
+trap_init(void)
+{
 	// LAB 3: Your code here.
-	SETGATE(idt[0], 1, GD_KT, i0, 0);
-	    SETGATE(idt[1], 1, GD_KT, i1, 0);
-	    SETGATE(idt[3], 1, GD_KT, i3, 3);
-	    SETGATE(idt[4], 1, GD_KT, i4, 0);
-	    SETGATE(idt[5], 1, GD_KT, i5, 0);
-	    SETGATE(idt[6], 1, GD_KT, i6, 0);
-	    SETGATE(idt[7], 1, GD_KT, i7, 0);
-	    SETGATE(idt[8], 1, GD_KT, i8, 0);
-	    SETGATE(idt[9], 1, GD_KT, i9, 0);
-	    SETGATE(idt[10], 1, GD_KT,i10, 0);
-	    SETGATE(idt[11], 1, GD_KT, i11, 0);
-	    SETGATE(idt[12], 1, GD_KT, i12, 0);
-	    SETGATE(idt[13], 1, GD_KT, i13, 0);
-	    SETGATE(idt[14], 1, GD_KT, i14, 0);
-	    SETGATE(idt[16], 1, GD_KT, i16, 0);
-	    SETGATE(idt[48], 1, GD_KT, i48, 3);	
+	
+	SETGATE(idt[0], 0, GD_KT, i0, 0);
+	    SETGATE(idt[1], 0, GD_KT, i1, 0);
+	    SETGATE(idt[3], 0, GD_KT, i3, 3);
+	    SETGATE(idt[4], 0, GD_KT, i4, 0);
+	    SETGATE(idt[5], 0, GD_KT, i5, 0);
+	    SETGATE(idt[6], 0, GD_KT, i6, 0);
+	    SETGATE(idt[7], 0, GD_KT, i7, 0);
+	    SETGATE(idt[8], 0, GD_KT, i8, 0);
+	    SETGATE(idt[9], 0, GD_KT, i9, 0);
+	    SETGATE(idt[10],0, GD_KT,i10, 0);
+	    SETGATE(idt[11], 0, GD_KT, i11, 0);
+	    SETGATE(idt[12], 0, GD_KT, i12, 0);
+	    SETGATE(idt[13], 0, GD_KT, i13, 0);
+	    SETGATE(idt[14], 0, GD_KT, i14, 0);
+	    SETGATE(idt[16], 0, GD_KT, i16, 0);
+	    	
+
+
+            SETGATE(idt[IRQ_OFFSET+0], 0, GD_KT, i32, 0);
+	    SETGATE(idt[IRQ_OFFSET+1], 0, GD_KT, i33, 0);
+	    SETGATE(idt[IRQ_OFFSET+2], 0, GD_KT, i34, 0);
+	    SETGATE(idt[IRQ_OFFSET+3], 0, GD_KT, i35, 0);
+	    
+	    SETGATE(idt[IRQ_OFFSET+4], 0, GD_KT, i36, 0);
+	    SETGATE(idt[IRQ_OFFSET+5], 0, GD_KT, i37, 0);
+	    SETGATE(idt[IRQ_OFFSET+6], 0, GD_KT, i38, 0);
+	    SETGATE(idt[IRQ_OFFSET+7], 0, GD_KT, i39, 0);
+	    SETGATE(idt[IRQ_OFFSET+8], 0, GD_KT,i40, 0);
+	    SETGATE(idt[IRQ_OFFSET+9], 0, GD_KT, i41, 0);
+	    SETGATE(idt[IRQ_OFFSET+10], 0, GD_KT, i42, 0);
+	    SETGATE(idt[IRQ_OFFSET+11], 0, GD_KT, i43, 0);
+	    SETGATE(idt[IRQ_OFFSET+12], 0, GD_KT, i44, 0);
+	    SETGATE(idt[IRQ_OFFSET+13], 0, GD_KT, i45, 0);
+	    SETGATE(idt[IRQ_OFFSET+14], 0, GD_KT, i46, 0);
+	    SETGATE(idt[IRQ_OFFSET+15], 0, GD_KT, i47, 0);	
+	    SETGATE(idt[48], 0, GD_KT, i48, 3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
 }
-
 // Initialize and load the per-CPU TSS and IDT
 void
 trap_init_percpu(void)
@@ -139,20 +177,24 @@ trap_init_percpu(void)
 	// user space on that CPU.
 	//
 	// LAB 4: Your code here:
-	ts.ts_esp0 = KSTACKTOP;
-	ts.ts_ss0 = GD_KD;
+	int cid = thiscpu->cpu_id;
+
+	// Setup a TSS so that we get the right stack
+	// when we trap to the kernel.
+	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cid * (KSTKSIZE + KSTKGAP);
+	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 
 	// Initialize the TSS slot of the gdt.
-	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
-					sizeof(struct Taskstate) - 1, 0);
-	gdt[GD_TSS0 >> 3].sd_s = 0;
+	gdt[(GD_TSS0 >> 3)+cid] = SEG16(STS_T32A, (uint32_t) (&(thiscpu->cpu_ts)),
+					sizeof(struct Taskstate), 0);
+	gdt[(GD_TSS0 >> 3)+cid].sd_s = 0;
 
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0);
+	ltr(GD_TSS0+8*cid);
 
 	// Load the IDT
-lidt(&idt_pd);
+	lidt(&idt_pd);
 }
 
 void
@@ -204,29 +246,55 @@ print_regs(struct PushRegs *regs)
 static void
 trap_dispatch(struct Trapframe *tf)
 {
-	switch(tf->tf_trapno)
-	{
-		case T_PGFLT:
-			page_fault_handler(tf);
-			break;
-		case T_BRKPT:
-			print_trapframe(tf);
-			monitor(tf);
-			break;
-		case T_SYSCALL:
-			tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
-			break;
-		default:
-			print_trapframe(tf);
-			if (tf->tf_cs == GD_KT)
-				panic("unhandled trap in kernel");
-			else 
-			{
-				env_destroy(curenv);
-				return;
-			}
-	}	
+	// Handle processor exceptions.
+	// LAB 3: Your code here.
 
+	if (tf->tf_trapno == T_PGFLT) {
+		// cprintf("PAGE FAULT\n");
+		page_fault_handler(tf);
+		return;
+	}
+	if (tf->tf_trapno == T_BRKPT) {
+		// cprintf("BREAK POINT\n");
+		monitor(tf);
+		return;
+	}
+	if (tf->tf_trapno == T_SYSCALL) {
+		// cprintf("SYSTEM CALL\n");
+		tf->tf_regs.reg_eax = 
+			syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
+				tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
+		return;
+	}
+
+	// Handle spurious interrupts
+	// The hardware sometimes raises these because of noise on the
+	// IRQ line or other reasons. We don't care.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
+		cprintf("Spurious interrupt on irq 7\n");
+		print_trapframe(tf);
+		return;
+	}
+
+	// Handle clock interrupts. Don't forget to acknowledge the
+	// interrupt using lapic_eoi() before calling the scheduler!
+	// LAB 4: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+		// cprintf("Timer\n");
+		lapic_eoi();
+		sched_yield();
+		return;
+	}
+
+
+	// Unexpected trap: The user process or the kernel has a bug.
+	print_trapframe(tf);
+	if (tf->tf_cs == GD_KT)
+		panic("unhandled trap in kernel");
+	else {
+		env_destroy(curenv);
+		return;
+	}
 }
 
 void
@@ -298,12 +366,14 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
+	// cprintf("fault_va: %x\n", fault_va);
 
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
-	if ((tf->tf_cs&3) == 0)
-	panic("Page Fault occured(Kernel)");
+	if ((tf->tf_cs&3) == 0) {
+		panic("Kernel page fault!");
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -337,41 +407,33 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	if (curenv->env_pgfault_upcall) {
+		struct UTrapframe *utf;
+		uintptr_t utf_addr;
+		if (UXSTACKTOP-PGSIZE<=tf->tf_esp && tf->tf_esp<=UXSTACKTOP-1)
+			utf_addr = tf->tf_esp - sizeof(struct UTrapframe) - 4;
+		else 
+			utf_addr = UXSTACKTOP - sizeof(struct UTrapframe);
+		user_mem_assert(curenv, (void*)utf_addr, sizeof(struct UTrapframe), PTE_W);//1 is enough
+		utf = (struct UTrapframe *) utf_addr;
 
-	
-	
-	if (curenv->env_pgfault_upcall == NULL ||
-		tf->tf_esp > UXSTACKTOP ||
-		(tf->tf_esp > USTACKTOP && tf->tf_esp < (UXSTACKTOP - PGSIZE)))// stack pointer is out of bounds.
-	{
-		cprintf("user page fault handler exeption!\n");
-		env_destroy(curenv);
+		utf->utf_fault_va = fault_va;
+		utf->utf_err = tf->tf_err;
+		utf->utf_regs = tf->tf_regs;
+		utf->utf_eip = tf->tf_eip;
+		utf->utf_eflags = tf->tf_eflags;
+		utf->utf_esp = tf->tf_esp;
+
+//		curenv->env_tf.env_tf
+		curenv->env_tf.tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+		curenv->env_tf.tf_esp = utf_addr;
+		env_run(curenv);
 	}
 
-
-	
-	uint32_t exception_stack_top;
-	if (tf->tf_esp < USTACKTOP) {
-		
-		exception_stack_top = UXSTACKTOP - sizeof(struct UTrapframe);
-	} else {
-		exception_stack_top = tf->tf_esp - sizeof(struct UTrapframe) - 4; //gap between two exception frames (recursive fault)
-	}
-
-	user_mem_assert(curenv, (void *) exception_stack_top, 1, PTE_W | PTE_U);// 
-
-	// Write the UTrapframe to the exception stack
-	struct UTrapframe *utframe = (struct UTrapframe *) exception_stack_top;
-	utframe->utf_fault_va = fault_va;
-	utframe->utf_err = tf->tf_err;
-	utframe->utf_regs = tf->tf_regs;
-	utframe->utf_eip = tf->tf_eip;
-	utframe->utf_eflags = tf->tf_eflags;
-	utframe->utf_esp = tf->tf_esp;
-
-	
-	tf->tf_esp = (uintptr_t) exception_stack_top;
-	tf->tf_eip = (uintptr_t) curenv->env_pgfault_upcall;
-
-	env_run(curenv);
+	// Destroy the environment that caused the fault.
+	cprintf("[%08x] user fault va %08x ip %08x\n",
+		curenv->env_id, fault_va, tf->tf_eip);
+	print_trapframe(tf);
+	env_destroy(curenv);
 }
+

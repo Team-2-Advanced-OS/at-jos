@@ -29,29 +29,26 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
-	
-	//struct Env *e;
-
-    	int i, current=0;
-    	if (curenv) current=ENVX(curenv->env_id);
-        else current = 0;
-    	for (i = 0; i < NENV; ++i) {
-        int j = (current+i) % NENV;
-        if (j < 2) cprintf("envs[%x].env_status: %x\n", j, envs[j].env_status);
-        if (envs[j].env_status == ENV_RUNNABLE) {
-         if (j == 1) 
-                cprintf("\n");
-            env_run(envs + j);
-        }
-    }
-    if (curenv && curenv->env_status == ENV_RUNNING)
-        env_run(curenv);
-
-
-
-
+	struct Env *e;
+	// cprintf("curenv: %x\n", curenv);
+	int i, cur=0;
+	if (curenv) cur=ENVX(curenv->env_id);
+		else cur = 0;
+	// cprintf("cur: %x, thiscpu: %x\n", cur, thiscpu->cpu_id);
+	for (i = 0; i < NENV; ++i) {
+		int j = (cur+i) % NENV;
+		// if (j < 2) cprintf("envs[%x].env_status: %x\n", j, envs[j].env_status);
+		if (envs[j].env_status == ENV_RUNNABLE) {
+			// if (j == 1) 
+			// 	cprintf("\n");
+			env_run(envs + j);
+		}
+	}
+	if (curenv && curenv->env_status == ENV_RUNNING)
+		env_run(curenv);
 
 	// sched_halt never returns
+	// cprintf("Nothing runnable\n");
 	sched_halt();
 }
 
@@ -67,11 +64,12 @@ sched_halt(void)
 	// environments in the system, then drop into the kernel monitor.
 	for (i = 0; i < NENV; i++) {
 		if ((envs[i].env_status == ENV_RUNNABLE ||
-		     envs[i].env_status == ENV_RUNNING ||
-		     envs[i].env_status == ENV_DYING))
+		     envs[i].env_status == ENV_RUNNING))
 			break;
 	}
 	if (i == NENV) {
+		for (i = 0; i < 2; ++i)
+			cprintf("envs[%x].env_status: %x\n", i, envs[i].env_status);
 		cprintf("No runnable environments in the system!\n");
 		while (1)
 			monitor(NULL);
@@ -96,9 +94,7 @@ sched_halt(void)
 		"pushl $0\n"
 		"pushl $0\n"
 		"sti\n"
-		"1:\n"
 		"hlt\n"
-		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
 }
 
