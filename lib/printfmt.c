@@ -7,6 +7,7 @@
 #include <inc/string.h>
 #include <inc/stdarg.h>
 #include <inc/error.h>
+#include <inc/csa.h>
 
 /*
  * Space or zero padding and a field width are supported for the numeric
@@ -92,8 +93,10 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
-			if (ch == '\0')
+			if (ch == '\0') {
+				csa = 0x0700;
 				return;
+			}
 			putch(ch, putdat);
 		}
 
@@ -207,12 +210,9 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// (unsigned) octal
 		case 'o':
-			// Replace this with your code.
-			num = getuint(&ap, lflag);
-			base = 8;
-int x = 1, y = 3, z = 4; //--------------------------------------->> Extra
-cprintf("x %d, y %x, z %d\n", x, y, z);//-------------------------->> Extra
-			goto number;
+      num = getuint(&ap, lflag);
+      base = 8;
+      goto number;
 
 		// pointer
 		case 'p':
@@ -229,12 +229,16 @@ cprintf("x %d, y %x, z %d\n", x, y, z);//-------------------------->> Extra
 			base = 16;
 		number:
 			printnum(putch, putdat, num, base, width, padc);
-
 			break;
 
 		// escaped '%' character
 		case '%':
 			putch(ch, putdat);
+			break;
+
+		case 'm':
+			num = getint(&ap, lflag);
+			csa = num;
 			break;
 
 		// unrecognized escape sequence - just print it literally
@@ -244,9 +248,7 @@ cprintf("x %d, y %x, z %d\n", x, y, z);//-------------------------->> Extra
 				/* do nothing */;
 			break;
 		}
-
 	}
-
 }
 
 void
