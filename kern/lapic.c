@@ -80,11 +80,11 @@ lapic_init(void)
 	// BSP's local APIC in Virtual Wire Mode, in which 8259A's
 	// INTR is virtually connected to BSP's LINTIN0. In this mode,
 	// we do not need to program the IOAPIC.
-	if (thiscpu != bootcpu)//mask every cpu other than bootcpu
+	if (thiscpu != bootcpu)
 		lapicw(LINT0, MASKED);
 
 	// Disable NMI (LINT1) on all CPUs
-	lapicw(LINT1, MASKED);//why?
+	lapicw(LINT1, MASKED);
 
 	// Disable performance counter overflow interrupts
 	// on machines that provide that interrupt entry.

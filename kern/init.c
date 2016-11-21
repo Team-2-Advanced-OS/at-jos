@@ -18,18 +18,6 @@
 static void boot_aps(void);
 
 
-// Test the stack backtrace function (lab 1 only)
-void
-test_backtrace(int x)
-{
-	cprintf("entering test_backtrace %d\n", x);
-	if (x > 0)
-		test_backtrace(x-1);
-	else
-		mon_backtrace(0, 0, 0);
-	cprintf("leaving test_backtrace %d\n", x);
-}
-
 void
 i386_init(void)
 {
@@ -59,7 +47,7 @@ i386_init(void)
 
 	// Lab 4 multitasking initialization functions
 	pic_init();
-	// cprintf("pic_init done\n");
+
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
 	lock_kernel();
@@ -67,15 +55,19 @@ i386_init(void)
 	// Starting non-boot CPUs
 	boot_aps();
 
+	// Start fs.
+	ENV_CREATE(fs_fs, ENV_TYPE_FS);
+
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-	ENV_CREATE(user_yield, ENV_TYPE_USER);
-	ENV_CREATE(user_yield, ENV_TYPE_USER);
-	ENV_CREATE(user_yield, ENV_TYPE_USER);
+	ENV_CREATE(user_icode, ENV_TYPE_USER);
 #endif // TEST*
+
+	// Should not be necessary - drains keyboard because interrupt has given up.
+	kbd_intr();
 
 	// Schedule and run the first user environment!
 	sched_yield();
@@ -97,28 +89,19 @@ boot_aps(void)
 	// Write entry code to unused memory at MPENTRY_PADDR
 	code = KADDR(MPENTRY_PADDR);
 	memmove(code, mpentry_start, mpentry_end - mpentry_start);
-	cprintf("code size: %x\n", mpentry_end - mpentry_start);
-	cprintf("code addr: %x, mpentry_start addr: %x\n",
-		code, mpentry_start);
+
 	// Boot each AP one at a time
-	cprintf("boot_aps:cpus: %x\n", cpus);
-	cprintf("ncpu: %x, CpuInfo size: %x\n", ncpu, sizeof(struct CpuInfo));
 	for (c = cpus; c < cpus + ncpu; c++) {
-		cprintf("c: %x\n\n", c-cpus);
 		if (c == cpus + cpunum())  // We've started already.
 			continue;
 
 		// Tell mpentry.S what stack to use 
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
-		cprintf("mpentry_kstack: %x\n", mpentry_kstack);
 		// Start the CPU at mpentry_start
-		cprintf("code: %x\n", code);
 		lapic_startap(c->cpu_id, PADDR(code));
 		// Wait for the CPU to finish some basic setup in mp_main()
-		cprintf("c->cpu_status: %x\n", c->cpu_status);
 		while(c->cpu_status != CPU_STARTED)
 			;
-		cprintf("cpu %x started\n", c-cpus);
 	}
 }
 
@@ -131,11 +114,8 @@ mp_main(void)
 	cprintf("SMP: CPU %d starting\n", cpunum());
 
 	lapic_init();
-	// cprintf("lapic_init done\n");
 	env_init_percpu();
-	// cprintf("env_init_percpu done\n");
 	trap_init_percpu();
-	// cprintf("trap_init_percpu done\n");
 	xchg(&thiscpu->cpu_status, CPU_STARTED); // tell boot_aps() we're up
 
 	// Now that we have finished some basic setup, call sched_yield()

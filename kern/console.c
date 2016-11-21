@@ -5,7 +5,6 @@
 #include <inc/kbdreg.h>
 #include <inc/string.h>
 #include <inc/assert.h>
-#include <inc/csa.h>
 
 #include <kern/console.h>
 #include <kern/picirq.h>
@@ -102,6 +101,9 @@ serial_init(void)
 	(void) inb(COM1+COM_IIR);
 	(void) inb(COM1+COM_RX);
 
+	// Enable serial interrupts
+	if (serial_exists)
+		irq_setmask_8259A(irq_mask_8259A & ~(1<<4));
 }
 
 
@@ -165,9 +167,8 @@ static void
 cga_putc(int c)
 {
 	// if no attribute given, then use black on white
-	if (!csa) csa = 0x0700;
 	if (!(c & ~0xFF))
-		c |= csa;
+		c |= 0x0700;
 
 	switch (c & 0xff) {
 	case '\b':
@@ -372,7 +373,7 @@ kbd_intr(void)
 static void
 kbd_init(void)
 {
-	// Drain the kbd buffer so that Bochs generates interrupts.
+	// Drain the kbd buffer so that QEMU generates interrupts.
 	kbd_intr();
 	irq_setmask_8259A(irq_mask_8259A & ~(1<<1));
 }

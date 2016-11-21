@@ -29,26 +29,37 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
+	//cprintf("DEBUG-SCHED: CPU %d - In scheduler, curenv = %p\n", cpunum(), curenv);
 	struct Env *e;
-	// cprintf("curenv: %x\n", curenv);
-	int i, cur=0;
-	if (curenv) cur=ENVX(curenv->env_id);
-		else cur = 0;
-	// cprintf("cur: %x, thiscpu: %x\n", cur, thiscpu->cpu_id);
-	for (i = 0; i < NENV; ++i) {
-		int j = (cur+i) % NENV;
-		// if (j < 2) cprintf("envs[%x].env_status: %x\n", j, envs[j].env_status);
-		if (envs[j].env_status == ENV_RUNNABLE) {
-			// if (j == 1) 
-			// 	cprintf("\n");
-			env_run(envs + j);
+	if (curenv) {
+		for (e = curenv + 1; e < envs + NENV; e++) {
+			if (e->env_status == ENV_RUNNABLE) {
+				//cprintf("DEBUG-SCHED: CPU %d: going to run env %p\n", cpunum(), e);
+				env_run(e);
+			}
+		}
+		for (e = envs; e < curenv; e++) {
+			if (e->env_status == ENV_RUNNABLE) {
+				//cprintf("DEBUG-SCHED: CPU %d: going to run env %p\n", cpunum(), e);
+				env_run(e);
+			}
+		}
+		// If didn't find any runnable, try to keep running curenv
+		if (curenv->env_status == ENV_RUNNING) {
+			//cprintf("DEBUG-SCHED: CPU %d: going to run env %p\n", cpunum(), curenv);
+			env_run(curenv);
+		}
+	} else {
+		for (e = envs; e < envs + NENV; e++) {
+			if (e->env_status == ENV_RUNNABLE) {
+				//cprintf("DEBUG-SCHED: CPU %d: going to run env %p\n", cpunum(), e);
+				env_run(e);
+			}
 		}
 	}
-	if (curenv && curenv->env_status == ENV_RUNNING)
-		env_run(curenv);
 
 	// sched_halt never returns
-	// cprintf("Nothing runnable\n");
+	//cprintf("DEBUG-SCHED: CPU %d: no env to run found\n", cpunum());
 	sched_halt();
 }
 
@@ -64,12 +75,11 @@ sched_halt(void)
 	// environments in the system, then drop into the kernel monitor.
 	for (i = 0; i < NENV; i++) {
 		if ((envs[i].env_status == ENV_RUNNABLE ||
-		     envs[i].env_status == ENV_RUNNING))
+		     envs[i].env_status == ENV_RUNNING ||
+		     envs[i].env_status == ENV_DYING))
 			break;
 	}
 	if (i == NENV) {
-		for (i = 0; i < 2; ++i)
-			cprintf("envs[%x].env_status: %x\n", i, envs[i].env_status);
 		cprintf("No runnable environments in the system!\n");
 		while (1)
 			monitor(NULL);
@@ -94,7 +104,9 @@ sched_halt(void)
 		"pushl $0\n"
 		"pushl $0\n"
 		"sti\n"
+		"1:\n"
 		"hlt\n"
+		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
 }
 
