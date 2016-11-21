@@ -33,7 +33,7 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
 	if(check && ret > 0)
 		panic("syscall %d returned %d (> 0)", num, ret);
-	
+
 	return ret;
 }
 
@@ -58,9 +58,7 @@ sys_env_destroy(envid_t envid)
 envid_t
 sys_getenvid(void)
 {
-	envid_t ret = syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
-	// cprintf("lib/syscall.c: %x\n", ret);
-	return ret;
+	 return syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
 }
 
 void
@@ -93,6 +91,12 @@ int
 sys_env_set_status(envid_t envid, int status)
 {
 	return syscall(SYS_env_set_status, 1, envid, status, 0, 0, 0);
+}
+
+int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	return syscall(SYS_env_set_trapframe, 1, envid, (uint32_t) tf, 0, 0, 0);
 }
 
 int

@@ -7,7 +7,6 @@
 #include <inc/string.h>
 #include <inc/stdarg.h>
 #include <inc/error.h>
-#include <inc/csa.h>
 
 /*
  * Space or zero padding and a field width are supported for the numeric
@@ -29,6 +28,13 @@ static const char * const error_string[MAXERROR] =
 	[E_FAULT]	= "segmentation fault",
 	[E_IPC_NOT_RECV]= "env is not recving",
 	[E_EOF]		= "unexpected end of file",
+	[E_NO_DISK]	= "no free space on disk",
+	[E_MAX_OPEN]	= "too many files are open",
+	[E_NOT_FOUND]	= "file or block not found",
+	[E_BAD_PATH]	= "invalid path",
+	[E_FILE_EXISTS]	= "file already exists",
+	[E_NOT_EXEC]	= "file is not a valid executable",
+	[E_NOT_SUPP]	= "operation not supported",
 };
 
 /*
@@ -93,10 +99,8 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
-			if (ch == '\0') {
-				csa = 0x0700;
+			if (ch == '\0')
 				return;
-			}
 			putch(ch, putdat);
 		}
 
@@ -210,9 +214,10 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// (unsigned) octal
 		case 'o':
-      num = getuint(&ap, lflag);
-      base = 8;
-      goto number;
+			// Replace this with your code.
+			num = getuint(&ap, lflag);
+                        base = 8;
+                        goto number;
 
 		// pointer
 		case 'p':
@@ -234,11 +239,6 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// escaped '%' character
 		case '%':
 			putch(ch, putdat);
-			break;
-
-		case 'm':
-			num = getint(&ap, lflag);
-			csa = num;
 			break;
 
 		// unrecognized escape sequence - just print it literally
