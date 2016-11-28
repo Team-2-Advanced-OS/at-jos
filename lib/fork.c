@@ -69,30 +69,47 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
-	int r;
+	
+	if (!(uvpd[pn/NPTENTRIES] & PTE_P))
+		return 0;
 
-	// LAB 4: Your code here.
-	// Check if page is writable or COW
+	
 	pte_t pte = uvpt[pn];
-	uint32_t perm = PTE_P | PTE_U;
-	if (pte && (PTE_COW | PTE_W)) {
-		perm |= PTE_COW;
-	}
 
-	// Map page
-	void *va = (void *) (pn * PGSIZE);
-	// Map on the child
-	if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
-		panic("sys_page_alloc: %e", r);
-		return r;
-	}
+	if (pte & PTE_P) {
+		int r;
+		uint32_t perm = pte & PTE_SYSCALL;
+		void *va = (void *) (pn * PGSIZE);
 
-	// Change the permission on the parent
-	if ((r = sys_page_map(0, va, 0, va, perm)) < 0) {
-		panic("sys_page_alloc: %e", r);
-		return r;
+		
+		if (pte & PTE_SHARE) {
+			
+			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
+				panic("sys_page_map: %e", r);
+				return r;
+			}
+	
+		} else if (pte & (PTE_W | PTE_COW)) {
+			perm &= ~PTE_W; 
+			perm |= PTE_COW; 
+			
+			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
+				panic("sys_page_map: %e", r);
+				return r;
+			}
+			if ((r = sys_page_map(0, va, 0, va, perm)) < 0) {
+				panic("sys_page_map: %e", r);
+				return r;
+			}
+		
+		} else {
+			
+			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
+				panic("sys_page_map: %e", r);
+				return r;
+			}
+		}
 	}
-
 	return 0;
 }
 
@@ -125,33 +142,29 @@ fork(void)
 		panic("sys_exofork: %e", envid);
 		return envid;
 	}
+
+	// If we are the child, fix thisenv.
 	if (envid == 0) {
-		// We are the child.
-		thisenv = &envs[ENVX(sys_getenvid())]; // Fix thisenv
+		thisenv = &envs[ENVX(sys_getenvid())];
 		return 0;
 	}
 
+	// We are the parent!
 	// Set page fault handler on the child.
-	// The parent needs to do it, else the child wouldn't be able to handle
-	// the fault when trying to access it's stack (which happens as soon it starts)
+	// The parent needs to do it, else the child wouldn't be able to handle the
+	// fault when trying to access it's stack (which happens as soon it starts)
 	extern void _pgfault_upcall(void);
-	sys_page_alloc(envid, (void *) (UXSTACKTOP - PGSIZE), PTE_P | PTE_U | PTE_W);
+	sys_page_alloc(envid, (void *) (UXSTACKTOP-PGSIZE), PTE_P | PTE_U | PTE_W);
 	sys_env_set_pgfault_upcall(envid, (void *) _pgfault_upcall);
 
-	// We are the parent.
-	// Copy our address space to child
+	// Copy our address space to child. Be careful not to copy the exception
+	// stack too, so go until USTACKTOP instead of UTOP.
 	unsigned pn;
-	extern unsigned char end[];
-	for (pn = UTEXT/PGSIZE; pn <= ((uint32_t)end)/PGSIZE; pn++) {
+	for (pn = UTEXT/PGSIZE; pn < USTACKTOP/PGSIZE; pn++) {
 		duppage(envid, pn);
 	}
 
-	// Also copy the stack we are currently running on
-	// I think it should loop from ustacktop to this page, since the stack
-	// can have more than 1 page
-	duppage(envid, ((uint32_t) &envid)/PGSIZE);
-
-	// Start the child environmnet running
+	// Make the child runnable
 	int r;
 	if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0) {
 		panic("sys_env_set_status: %e", r);

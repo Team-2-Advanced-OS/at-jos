@@ -128,7 +128,6 @@ devfile_read(struct Fd *fd, void *buf, size_t n)
 }
 
 
-
 static size_t
 min_size(size_t a, size_t b) {
 	if (a > b) return b;
@@ -150,18 +149,14 @@ devfile_write(struct Fd *fd, const void *buf, size_t n)
 	// LAB 5: Your code here
 
 	fsipcbuf.write.req_fileid = fd->fd_file.id;
-	
 	size_t n_real = min_size(n, sizeof(fsipcbuf.write.req_buf));
 	fsipcbuf.write.req_n = n_real;
-	
 	memmove(fsipcbuf.write.req_buf, buf, n_real);
-
-	
-	int r;
-	if ((r = fsipc(FSREQ_WRITE, NULL)) < 0) 
-		return r;
-	assert(r <= n_real); 
-	return r;
+	int req;
+	if ((req = fsipc(FSREQ_WRITE, NULL)) < 0)
+	return req;
+	assert(req <= n_real); 
+	return req;
 }
 
 static int

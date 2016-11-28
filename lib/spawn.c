@@ -301,6 +301,22 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
+	
+        uint32_t pn;
+        for (pn = UTEXT/PGSIZE; pn < UTOP/PGSIZE; pn++) {
+		
+		if (uvpd[pn/NPTENTRIES] & PTE_P) {
+			
+			pte_t pte = uvpt[pn];
+			if ((pte & PTE_P) && (pte & PTE_SHARE)) {
+				void *va = (void *) (pn * PGSIZE);
+				uint32_t perm = pte & PTE_SYSCALL;
+				int r;
+				if ((r = sys_page_map(0, va, child, va, perm)) < 0)
+					panic("sys_page_map: %e", r);
+			}
+		}
+	}
 	return 0;
 }
 
