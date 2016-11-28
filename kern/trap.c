@@ -210,21 +210,19 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-	// TODO: Start using T_* instead of interrupt numbers
-	// TODO: Use a switch
-	// TODO: Remove debugging printings
+
 	if (tf->tf_trapno == 3) {
-		//cprintf("DEBUG-TRAP: Trap dispatch - Breakpoint\n");
+		//cprintf("inside Breakpoint\n");
 		monitor(tf);
 		return;
 	}
 	if (tf->tf_trapno == 14) {
-		//cprintf("DEBUG-TRAP: Trap dispatch - Page fault\n");
+		//cprintf("inside Page fault\n");
 		page_fault_handler(tf);
 		return;
 	}
 	if (tf->tf_trapno == T_SYSCALL) {
-		//cprintf("DEBUG-TRAP: Trap dispatch - System Call\n");
+		//cprintf("inside System Call\n");
 		struct PushRegs regs = tf->tf_regs;
 		int32_t retValue;
 		retValue = syscall(regs.reg_eax,// system call number - eax
@@ -237,29 +235,33 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 	}
 
-	// Handle spurious interrupts
-	// The hardware sometimes raises these because of noise on the
-	// IRQ line or other reasons. We don't care.
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
 		cprintf("Spurious interrupt on irq 7\n");
 		print_trapframe(tf);
 		return;
 	}
 
-	// Handle clock interrupts. Don't forget to acknowledge the
-	// interrupt using lapic_eoi() before calling the scheduler!
+	
 	// LAB 4: Your code here.
 	if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
-		//cprintf("DEBUG-TRAP: Trap dispatch - Clock interrupt\n");
+		//cprintf("inside Clock interrupt\n");
 		lapic_eoi();
 		sched_yield();
 	}
 
-	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.
+        if (tf->tf_trapno == IRQ_OFFSET + IRQ_KBD) {
+		//cprintf("inside Keyboard interrupt\n");
+		kbd_intr();
+		return;
+	}
+        if (tf->tf_trapno == IRQ_OFFSET + IRQ_SERIAL) {
+		//cprintf("inside Serial interrupt\n");
+		serial_intr();
+		return;
+	}
 
-	// Unexpected trap: The user process or the kernel has a bug.
-	//cprintf("DEBUG-TRAP: Unexpected trap\n");
+	//cprintf("inside Unexpected trap\n");
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
