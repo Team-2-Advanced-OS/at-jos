@@ -17,6 +17,10 @@ enum {
 	SYS_yield,
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
+	SYS_time_msec,
+	SYS_transmit_packet,
+	SYS_receive_packet,
+	SYS_get_mac_address,
 	NSYSCALLS
 };
 
