@@ -69,41 +69,46 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
-	
+	// Check if the page table that contains the PTE we want is allocated
+	// using UVPD. If it is not, just don't map anything, and silently succeed.
 	if (!(uvpd[pn/NPTENTRIES] & PTE_P))
 		return 0;
 
-	
+	// Retrieve the PTE using UVPT
 	pte_t pte = uvpt[pn];
 
+	// If the page is present, duplicate according to it's permissions
 	if (pte & PTE_P) {
 		int r;
 		uint32_t perm = pte & PTE_SYSCALL;
 		void *va = (void *) (pn * PGSIZE);
 
-		
+		// If PTE_SHARE is enabled, share it by just copying the
+		// pte, which can be done by mapping on the same address
+		// with the same permissions, even if it is writable
 		if (pte & PTE_SHARE) {
-			
+			// Map on the child
 			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
 				panic("sys_page_map: %e", r);
 				return r;
 			}
-	
+		// If writable or COW, make it COW on parent and child
 		} else if (pte & (PTE_W | PTE_COW)) {
-			perm &= ~PTE_W; 
-			perm |= PTE_COW; 
-			
+			perm &= ~PTE_W;  // Remove PTE_W, so it faults
+			perm |= PTE_COW; // Make it PTE_COW
+			// Map on the child
 			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
 				panic("sys_page_map: %e", r);
 				return r;
 			}
+			// Change the permission on parent, mapping on itself
 			if ((r = sys_page_map(0, va, 0, va, perm)) < 0) {
 				panic("sys_page_map: %e", r);
 				return r;
 			}
-		
+		// If it is read-only, just share it.
 		} else {
-			
+			// Map on the child
 			if ((r = sys_page_map(0, va, envid, va, perm)) < 0) {
 				panic("sys_page_map: %e", r);
 				return r;

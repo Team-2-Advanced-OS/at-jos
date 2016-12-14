@@ -117,3 +117,29 @@ sys_ipc_recv(void *dstva)
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
 
+unsigned int
+sys_time_msec(void)
+{
+	return (unsigned int) syscall(SYS_time_msec, 0, 0, 0, 0, 0, 0);
+}
+
+int
+sys_transmit_packet(void *buf, size_t size)
+{
+	return syscall(SYS_transmit_packet, 1,
+		(uint32_t) buf, (uint32_t) size, 0, 0, 0);
+}
+
+int
+sys_receive_packet(void *buf, size_t *size_store)
+{
+	return syscall(SYS_receive_packet, 1,
+		(uint32_t) buf, (uint32_t) size_store, 0, 0, 0);
+}
+
+int
+sys_get_mac_address(void *buf)
+{
+	return syscall(SYS_get_mac_address, 1,
+		(uint32_t) buf, 0, 0, 0, 0);
+}

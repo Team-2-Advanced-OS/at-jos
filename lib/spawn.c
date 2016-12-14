@@ -301,13 +301,15 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
-	
+	// Loop through all the pte's of parent's pgdir in user space
         uint32_t pn;
         for (pn = UTEXT/PGSIZE; pn < UTOP/PGSIZE; pn++) {
 		
 		if (uvpd[pn/NPTENTRIES] & PTE_P) {
-			
+		
 			pte_t pte = uvpt[pn];
+
+			
 			if ((pte & PTE_P) && (pte & PTE_SHARE)) {
 				void *va = (void *) (pn * PGSIZE);
 				uint32_t perm = pte & PTE_SYSCALL;
