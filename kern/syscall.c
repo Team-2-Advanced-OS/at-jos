@@ -11,6 +11,8 @@
 #include <kern/syscall.h>
 #include <kern/console.h>
 #include <kern/sched.h>
+#include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -147,20 +149,23 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// Remember to check whether the user has supplied us with a good
 	// address!
 
-	
+	// Check if user provided good addresses
 	if (tf->tf_eip >= UTOP || tf->tf_esp >= UTOP)
-		panic("bad address");
+		panic("sys_env_set_trapframe: user supplied bad address");
 
-	struct Env *new_env;
-	envid2env(envid, &new_env, 1);
-	if (!new_env) {
+	// Tries to retrieve the environment
+	struct Env *e;
+	envid2env(envid, &e, 1);
+	if (!e) {
 		return -E_BAD_ENV;
 	}
 
-	
-	tf->tf_cs |= 3;//CPL =3
-	tf->tf_eflags |= FL_IF;//enable interrupts
-	new_env->env_tf = *tf;
+	// Modify tf to make sure that CPL = 3 and interrupts are enabled
+	tf->tf_cs |= 3;
+	tf->tf_eflags |= FL_IF;
+
+	// Set envid's trapframe to tf
+	e->env_tf = *tf;
 	return 0;
 }
 
@@ -487,6 +492,56 @@ sys_ipc_recv(void *dstva)
 	return 0;
 }
 
+// Return the current time.
+static int
+sys_time_msec(void)
+{
+	// LAB 6: Your code here.
+	return time_msec();
+}
+
+// Asks the driver to transmit a packet. The packet may be dropped if
+// E1000 transmission ring is full, but it still counts as success.
+// Returns 0 on success, -E_INVAL if invalid arguments
+static int
+sys_transmit_packet(void *buf, size_t size) {
+	// Check arguments
+	// buf should be in user space
+	if (!buf || ((uint32_t) buf) > UTOP)
+		return -E_INVAL;
+	// size should not exceed the maximum
+	if (size > MAX_PACKET_SIZE)
+		return -E_INVAL;
+
+	transmit_packet(buf, size);
+	return 0;
+}
+
+static int
+sys_receive_packet(void *buf, size_t *size_store) {
+	// Check pointers provided by user
+	if (!buf || ((uint32_t) buf) > UTOP)
+		return -E_INVAL;
+	if (!size_store || ((uint32_t) size_store) > UTOP)
+		return -E_INVAL;
+
+	receive_packet(buf, size_store);
+	return 0;
+}
+
+// Stores the 6 bytes of the mac address in buf, from the lowest
+// order byte, to the highest order
+// Returns 0 on success, < 0 if pointer provided is invalid
+static int
+sys_get_mac_address(void *buf) {
+	// Check pointers provided by user
+	if (!buf || ((uint32_t) buf) > UTOP)
+		return -E_INVAL;
+
+	get_mac_address(buf);
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -494,71 +549,83 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
-
-	// panic("syscall not implemented");
-
 	int32_t ret = 0;
 
-	// TODO: Remove debugging printings
 	switch (syscallno) {
 	case SYS_cputs:
-		//cprintf("DEBUG-SYSCALL: Calling sys_cputs!\n");
+		
 		sys_cputs((char *) a1, (size_t) a2);
 		break;
 	case SYS_cgetc:
-		//cprintf("DEBUG-SYSCALL: Calling sys_cgetc!\n");
+		
 		ret = sys_cgetc();
 		break;
 	case SYS_getenvid:
-		//cprintf("DEBUG-SYSCALL: Calling sys_getenvid!\n");
+		
 		ret = (int32_t) sys_getenvid();
 		break;
 	case SYS_env_destroy:
-		//cprintf("DEBUG-SYSCALL: Calling sys_env_destroy!\n");
+		
 		ret = sys_env_destroy((envid_t) a1);
 		break;
 	case SYS_yield:
-		//cprintf("DEBUG-SYSCALL: Calling sys_yield!\n");
+		
 		sys_yield();
 		break;
 	case SYS_exofork:
-		//cprintf("DEBUG-SYSCALL: Calling sys_exofork!\n");
+		
 		ret = (int32_t) sys_exofork();
 		break;
 	case SYS_env_set_status:
-		//cprintf("DEBUG-SYSCALL: Calling sys_env_set_status!\n");
+		
 		ret = (int32_t) sys_env_set_status((envid_t) a1, (int) a2);
 		break;
 	case SYS_page_alloc:
-		//cprintf("DEBUG-SYSCALL: Calling sys_page_alloc!\n");
+		
 		ret = (int32_t) sys_page_alloc((envid_t) a1, (void *) a2, (int) a3);
 		break;
 	case SYS_page_map:
-		//cprintf("DEBUG-SYSCALL: Calling sys_page_map!\n");
+		
 		ret = (int32_t) sys_page_map((envid_t) a1, (void *) a2,
 					     (envid_t) a3, (void *) a4, (int) a5);
 		break;
 	case SYS_page_unmap:
-		//cprintf("DEBUG-SYSCALL: Calling sys_page_unmap!\n");
+		
 		ret = (int32_t) sys_page_unmap((envid_t) a1, (void *) a2);
 		break;
 	case SYS_env_set_pgfault_upcall:
-		//cprintf("DEBUG-SYSCALL: Calling sys_env_set_pgfault_upcall!\n");
+		
 		ret = (int32_t) sys_env_set_pgfault_upcall((envid_t) a1, (void *) a2);
 		break;
 	case SYS_ipc_try_send:
-		//cprintf("DEBUG-SYSCALL: Calling sys_ipc_try_send!\n");
+		
 		ret = (int32_t) sys_ipc_try_send((envid_t) a1, (uint32_t) a2,
 						   (void*) a3, (unsigned) a4);
 		break;
 	case SYS_ipc_recv:
-		//cprintf("DEBUG-SYSCALL: Calling sys_ipc_recv!\n");
+		
 		ret = (int32_t) sys_ipc_recv((void*) a1);
 		break;
 	case SYS_env_set_trapframe:
-		//cprintf("DEBUG-SYSCALL: Calling sys_env_set_trapframe!\n");
+		
 		ret = (int32_t) sys_env_set_trapframe((envid_t) a1,
 						      (struct Trapframe *) a2);
+		break;
+	case SYS_time_msec:
+		
+		ret = (int32_t) sys_time_msec();
+		break;
+	case SYS_transmit_packet:
+		
+		ret = (int32_t) sys_transmit_packet((void *) a1, (size_t) a2);
+		break;
+	case SYS_receive_packet:
+		
+		ret = (int32_t) sys_receive_packet((void *) a1, (size_t *) a2);
+		break;
+	case SYS_get_mac_address:
+		
+		ret = (int32_t) sys_get_mac_address((void *) a1);
 		break;
 	default:
 		return -E_INVAL;

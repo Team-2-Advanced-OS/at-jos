@@ -13,6 +13,7 @@
 #include <kern/picirq.h>
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
+#include <kern/time.h>
 
 static struct Taskstate ts;
 
@@ -210,58 +211,64 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-
+	
 	if (tf->tf_trapno == 3) {
-		//cprintf("inside Breakpoint\n");
 		monitor(tf);
 		return;
 	}
 	if (tf->tf_trapno == 14) {
-		//cprintf("inside Page fault\n");
 		page_fault_handler(tf);
 		return;
 	}
 	if (tf->tf_trapno == T_SYSCALL) {
-		//cprintf("inside System Call\n");
 		struct PushRegs regs = tf->tf_regs;
 		int32_t retValue;
-		retValue = syscall(regs.reg_eax,// system call number - eax
-				regs.reg_edx,	// a1 - edx
-				regs.reg_ecx,	// a2 - ecx
-				regs.reg_ebx,	// a3 - ebx
-				regs.reg_edi,	// a4 - edi
-				regs.reg_esi);	// a5 - esi
+		retValue = syscall(regs.reg_eax,
+				regs.reg_edx,	
+				regs.reg_ecx,	
+				regs.reg_ebx,	
+				regs.reg_edi,	
+				regs.reg_esi);	
 		tf->tf_regs.reg_eax = retValue;
 		return;
 	}
 
+	
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
 		cprintf("Spurious interrupt on irq 7\n");
 		print_trapframe(tf);
 		return;
 	}
 
-	
+	// Handle clock interrupts. Don't forget to acknowledge the
+	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
-	if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
-		//cprintf("inside Clock interrupt\n");
+	// Add time tick increment to clock interrupts.
+	// Be careful! In multiprocessors, clock interrupts are
+	// triggered on every CPU.
+	// LAB 6: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+		
+		if (cpunum() == 0)
+			time_tick();
+
 		lapic_eoi();
 		sched_yield();
 	}
 
+	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.
-        if (tf->tf_trapno == IRQ_OFFSET + IRQ_KBD) {
-		//cprintf("inside Keyboard interrupt\n");
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_KBD) {
 		kbd_intr();
 		return;
 	}
-        if (tf->tf_trapno == IRQ_OFFSET + IRQ_SERIAL) {
-		//cprintf("inside Serial interrupt\n");
+
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SERIAL) {
 		serial_intr();
 		return;
 	}
 
-	//cprintf("inside Unexpected trap\n");
+	
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
