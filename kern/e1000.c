@@ -245,7 +245,7 @@ attach_e1000(struct pci_func *pcif)
 
 	// Initializations
 	init_transmission();
-	init_receive();
+	
 
 	
 
