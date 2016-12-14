@@ -214,23 +214,27 @@ serve_read(envid_t envid, union Fsipc *ipc)
 		cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// Lab 5: Your code here:
-	
-	struct OpenFile *open;
-	int x;
-	if ((x = openfile_lookup(envid, req->req_fileid, &open)) < 0)
-		return x;
+	// First: Find the relevant open file
+	struct OpenFile *o;
+	int r;
+	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+		return r;
 
-	
-	struct File *file = open->o_file;
+	// Second: Call the relevant file system function, in this case file_read.
+	// We put the data in ret (&ipc->readRet), which is in the shared page,
+	// so the client has access to the data read.
+	struct File *file_to_read = o->o_file;
 	size_t count = req->req_n;
-	off_t offset = open->o_fd->fd_offset;
-	x = file_read(file, ret, count, offset);
+	off_t offset = o->o_fd->fd_offset;
+	r = file_read(file_to_read, ret, count, offset);
 
-		if (x < 0) {
-		return x;
+	// On failure, return the error code to the client.
+	if (r < 0) {
+		return r;
+	// On success, update the seek position and return the number of bytes read
 	} else {
-		uint32_t bytes_read = x;
-		open->o_fd->fd_offset += bytes_read;
+		uint32_t bytes_read = r;
+		o->o_fd->fd_offset += bytes_read;
 		return bytes_read;
 	}
 }
@@ -247,23 +251,25 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	
-	struct OpenFile *open;
-	int x;
-	if ((x = openfile_lookup(envid, req->req_fileid, &open)) < 0)
-		return x;
+	// First: Find the relevant open file
+	struct OpenFile *o;
+	int r;
+	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+		return r;
 
-	struct File *file_to_write = open->o_file;
+	// Second: Call the relevant file system function, in this case file_write
+	struct File *file_to_write = o->o_file;
 	size_t count = req->req_n;
-	off_t offset = open->o_fd->fd_offset;
-	x = file_write(file_to_write, req->req_buf, count, offset);
+	off_t offset = o->o_fd->fd_offset;
+	r = file_write(file_to_write, req->req_buf, count, offset);
 
-	if (x < 0) {
-		return x;
-	
+	// On failure, return the error code to the client
+	if (r < 0) {
+		return r;
+	// On success, update the seek position and return the number of bytes written
 	} else {
-		uint32_t bytes_written = x;
-		open->o_fd->fd_offset += bytes_written;
+		uint32_t bytes_written = r;
+		o->o_fd->fd_offset += bytes_written;
 		return bytes_written;
 	}
 }
@@ -376,7 +382,6 @@ umain(int argc, char **argv)
 
 	serve_init();
 	fs_init();
-        fs_test();
 	serve();
 }
 

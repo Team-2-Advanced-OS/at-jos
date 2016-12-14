@@ -65,14 +65,14 @@ alloc_block(void)
 	if (!super)
 		panic("in alloc_block: super not initialized");
 
-	
-	int no;
-	for (no = 1; no < super->s_nblocks; no++) {
+	// Loop through all possible blocks, checking if there is any free
+	int blockno;
+	for (blockno = 1; blockno < super->s_nblocks; blockno++) {
 		// If find a free block, mark it used and flush the bitmap block
-		if(block_is_free(no)) {
-			bitmap[no / 32] &= ~(1<<(no%32));
-			flush_block(&bitmap[no/32]);
-			return no;
+		if(block_is_free(blockno)) {
+			bitmap[blockno / 32] &= ~(1<<(blockno%32));
+			flush_block(&bitmap[blockno/32]);
+			return blockno;
 		}
 	}
 
@@ -129,11 +129,13 @@ fs_init(void)
 	
 }
 
-
+// Auxiliary function created by me
 static void*
 blockno_to_va(uint32_t blockno)
 {
-	
+	if (blockno >= NDIRECT + NINDIRECT)
+		panic("blockno_to_va: invalid blockno");
+
 	return (void*) (DISKMAP + blockno*BLKSIZE);
 }
 
@@ -157,32 +159,38 @@ static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
        // LAB 5: Your code here.
-	
+	// Checks if filebno is valid
 	if (filebno >= NDIRECT + NINDIRECT)
 		return -E_INVAL;
+
+	// Checks if it is one of the direct blocks
 	if (filebno < NDIRECT) {
 		*ppdiskbno = &(f->f_direct[filebno]);
 		return 0;
 	}
+
+	// If we got here, filebno is in the indirect block
+	// If there is no indirect block, try to allocate
 	if (f->f_indirect == 0) {
 		if (alloc) {
-			
-			int new;
-			if ((new = alloc_block()) < 0)
+			// Allocate the a new block
+			int newblkno;
+			if ((newblkno = alloc_block()) < 0)
 				return -E_NO_DISK;
 
-			
-			memset(blockno_to_va(new), 0, BLKSIZE);
+			// Clear the allocated block
+			memset(blockno_to_va(newblkno), 0, BLKSIZE);
 
-			
-			f->f_indirect = new;
+			// Make it the indirect block
+			f->f_indirect = newblkno;
 		} else {
 			return -E_NOT_FOUND;
 		}
 	}
 
-	uint32_t *indirblk = (uint32_t *) blockno_to_va(f->f_indirect);
-	*ppdiskbno = &indirblk[filebno - NDIRECT];
+	// Access the indirect block
+	uint32_t *indirect_blk = (uint32_t *) blockno_to_va(f->f_indirect);
+	*ppdiskbno = &indirect_blk[filebno - NDIRECT];
 	return 0;
 }
 
@@ -199,25 +207,28 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
        // LAB 5: Your code here.
 	// Retrieve the blockno_entry of the 'filebno'th block of file 'f'
-	uint32_t *block_entry;
-	int x;
-	if ((x = file_block_walk(f, filebno, &block_entry, 1)) < 0) {
-		return x; // -E_INVAL or -E_NO_DISK
+	uint32_t *blockno_entry;
+	int r;
+	if ((r = file_block_walk(f, filebno, &blockno_entry, 1)) < 0) {
+		return r; // -E_INVAL or -E_NO_DISK
 	}
 
-	
-	if (*block_entry == 0) {
-		
-		int newblk;
-		if ((newblk = alloc_block()) < 0)
+	// If the block is not allocated, allocate it
+	if (*blockno_entry == 0) {
+		// Tries to allocate a new block
+		int newblkno;
+		if ((newblkno = alloc_block()) < 0)
 			return -E_NO_DISK;
-	
-		memset(blockno_to_va(newblk), 0, BLKSIZE);
-	
-		*block_entry = newblk;
+
+		// Clear the allocated block
+		memset(blockno_to_va(newblkno), 0, BLKSIZE);
+
+		// Update the value
+		*blockno_entry = newblkno;
 	}
 
-	*blk = blockno_to_va(*block_entry);
+	// Set *blk to the va where the block is mapped
+	*blk = blockno_to_va(*blockno_entry);
 	return 0;
 }
 
