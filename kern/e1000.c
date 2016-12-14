@@ -229,21 +229,6 @@ receive_packet(void *buf, size_t *size_store)
 }
 
 
-
-
-void
-get_mac_address(void *buf)
-{
-	if (!buf)
-		panic("get_mac_address: null pointer");
-
-	uint8_t *mac_addr_copy = (uint8_t *) buf;
-	int i;
-	for (i = 0; i < 6; i++) {
-		*(mac_addr_copy + i) = mac_address[i];
-	}
-}
-
 // Initialize the E1000, 
 int
 attach_e1000(struct pci_func *pcif)
